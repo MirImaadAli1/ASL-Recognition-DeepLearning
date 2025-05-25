@@ -2,6 +2,13 @@
 
 This repository adapts the **CorrNet** architecture from the CVPR 2023 paper [Continuous Sign Language Recognition with Correlation Network](https://arxiv.org/abs/2303.03202) for **American Sign Language (ASL)** using the **How2Sign** dataset. The goal of this project is to perform continuous sign language recognition (CSLR) by leveraging both temporal correlations and spatial features for improved accuracy.
 
+## 🧠 Model Architecture
+
+- **ResNet18**: Extracts frame-level spatial features.
+- **1D CNN**: Learns local temporal patterns.
+- **BiLSTM**: Models long-term bidirectional dependencies in the video.
+- **Linear Layer + Softmax**: Classifies each time-step into a gloss label.
+
 ## About How2Sign Dataset
 
 [How2Sign](https://how2sign.github.io/) is a large-scale, continuous **American Sign Language (ASL)** dataset that contains **multi-view RGB videos**, **depth videos**, and **3D skeletal data**. It includes diverse everyday sentences signed by native ASL signers. The dataset is designed for tasks such as continuous sign language recognition and translation. 
@@ -88,10 +95,21 @@ We also acknowledge the **How2Sign** team for making their dataset publicly avai
 If you use this repository or parts of this work in your research, please cite the following papers:
 
 - **CorrNet**: 
-  - Y. Li, Y. Liu, Z. Xie, H. Li, M. Xu, and S. Wang, “Continuous Sign Language Recognition with Correlation Network,” CVPR 2023.
+  @article{Hu2023ContinuousSL,
+  title={Continuous Sign Language Recognition with Correlation Network},
+  author={Lianyu Hu and Liqing Gao and Zekang Liu and Wei Feng},
+  journal={2023 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year={2023},
+  pages={2529-2539},
+  url={https://api.semanticscholar.org/CorpusID:257364927}
+}
 - **How2Sign**: 
-  - T. Z. P. Hamid, Y. H. Kim, et al., “How2Sign: Large-Scale Continuous American Sign Language Dataset,” in Proceedings of the ICCV 2021.
+  @article{Duarte2020How2SignAL,
+  title={How2Sign: A Large-scale Multimodal Dataset for Continuous American Sign Language},
+  author={Amanda Cardoso Duarte and Shruti Palaskar and Deepti Ghadiyaram and Kenneth DeHaan and Florian Metze and Jordi Torres and Xavier Gir{\'o}-i-Nieto},
+  journal={2021 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year={2020},
+  pages={2734-2743},
+  url={https://api.semanticscholar.org/CorpusID:221172825}
+}
 
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
