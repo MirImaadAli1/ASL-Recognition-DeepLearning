@@ -9,13 +9,13 @@ import torch
 import random
 import importlib
 import faulthandler
+import torch.multiprocessing as mp
 import numpy as np
 import torch.nn as nn
 import shutil
 import inspect
 import time
 from collections import OrderedDict
-
 faulthandler.enable()
 import utils
 from modules.sync_batchnorm import convert_model
@@ -67,6 +67,7 @@ class Processor():
                 seq_train(self.data_loader['train'], self.model, self.optimizer,
                           self.device, epoch, self.recoder)
                 if eval_model:
+                    print(f"Loading dataset: {self.arg}")
                     dev_wer = seq_eval(self.arg, self.data_loader['dev'], self.model, self.device,
                                        'dev', epoch, self.arg.work_dir, self.recoder, self.arg.evaluate_tool)
                     self.recoder.print_log("Dev WER: {:05.2f}%".format(dev_wer))
@@ -201,6 +202,8 @@ class Processor():
             dataset_list = zip(["train", "train_eval", "dev", "test"], [True, False, False, False]) 
         elif self.arg.dataset == 'CSL-Daily':
             dataset_list = zip(["train", "train_eval", "dev", "test"], [True, False, False, False])
+        elif self.arg.dataset == 'how2sign':
+            dataset_list = zip(["train", "dev", "test"], [True, False, False])
         for idx, (mode, train_flag) in enumerate(dataset_list):
             arg = self.arg.feeder_args
             arg["prefix"] = self.arg.dataset_info['dataset_root']
@@ -214,10 +217,10 @@ class Processor():
     def build_dataloader(self, dataset, mode, train_flag):
         return torch.utils.data.DataLoader(
             dataset,
-            batch_size=self.arg.batch_size if mode == "train" else self.arg.test_batch_size,
+            batch_size=1,
             shuffle=train_flag,
             drop_last=train_flag,
-            num_workers=self.arg.num_worker,  # if train_flag else 0
+            num_workers=0,  # if train_flag else 0
             collate_fn=self.feeder.collate_fn,
             pin_memory=True,
             worker_init_fn=self.init_fn,

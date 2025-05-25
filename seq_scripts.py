@@ -2,6 +2,7 @@ import os
 import pdb
 import sys
 import copy
+import traceback
 import torch
 import numpy as np
 import torch.nn as nn
@@ -22,10 +23,19 @@ def seq_train(loader, model, optimizer, device, epoch_idx, recoder):
         vid_lgt = device.data_to_device(data[1])
         label = device.data_to_device(data[2])
         label_lgt = device.data_to_device(data[3])
+        print(f"Batch {batch_idx}:")
+        print(f"vid: {vid.shape if hasattr(vid, 'shape') else type(vid)}")
+        print(f"vid_lgt: {vid_lgt}")
+        print(f"label: {label}")
+        print(f"label_lgt: {label_lgt}")
+
         optimizer.zero_grad()
         with autocast():
             ret_dict = model(vid, vid_lgt, label=label, label_lgt=label_lgt)
+            # Print the entire ret_dict to see its contents
+            # print(f"ret_dict contents: {ret_dict}")
             loss = model.criterion_calculation(ret_dict, label, label_lgt)
+            print("loss", loss)
         if np.isinf(loss.item()) or np.isnan(loss.item()):
             print('loss is nan')
             #print(data[-1])
@@ -65,10 +75,13 @@ def seq_eval(cfg, loader, model, device, mode, epoch, work_dir, recoder,
             ret_dict = model(vid, vid_lgt, label=label, label_lgt=label_lgt)
 
         total_info += [file_name.split("|")[0] for file_name in data[-1]]
+        
         total_sent += ret_dict['recognized_sents']
         total_conv_sent += ret_dict['conv_sents']
     try:
         python_eval = True if evaluate_tool == "python" else False
+        print(f"total_info: {total_info}")
+        print(f"Length of total_info: {len(total_info)}")
         write2file(work_dir + "output-hypothesis-{}.ctm".format(mode), total_info, total_sent)
         write2file(work_dir + "output-hypothesis-{}-conv.ctm".format(mode), total_info,
                    total_conv_sent)
@@ -87,8 +100,9 @@ def seq_eval(cfg, loader, model, device, mode, epoch, work_dir, recoder,
             python_evaluate=python_eval,
             triplet=True,
         )
-    except:
-        print("Unexpected error:", sys.exc_info()[0])
+    except Exception as e:
+        print("Unexpected error:", e)  # Print the error message
+        traceback.print_exc()  # This will print the full stack trace
         lstm_ret = 100.0
     finally:
         pass

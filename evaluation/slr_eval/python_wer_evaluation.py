@@ -225,6 +225,6 @@ def wer_calculation(gt_path, primary_pred, auxiliary_pred=None):
 
 
 if __name__ == '__main__':
-    wer_calculation('phoenix2014-groundtruth-dev.stm',
+    wer_calculation('how2sign-groundtruth-dev.stm',
                     'out.output-hypothesis-dev.ctm')
     #                     'out.output-hypothesis-dev-conv.ctm')

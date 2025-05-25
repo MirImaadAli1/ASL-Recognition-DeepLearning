@@ -1,0 +1,4 @@
+dataset_root: ./videos
+dict_path: ./preprocess/how2sign/gloss_dict.npy
+evaluation_dir: ./evaluation/slr_eval
+evaluation_prefix: how2sign-groundtruth

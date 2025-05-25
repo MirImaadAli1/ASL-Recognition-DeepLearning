@@ -51,6 +51,7 @@ class SLRModel(nn.Module):
                                    conv_type=conv_type,
                                    use_bn=use_bn,
                                    num_classes=num_classes)
+        # Declare the path to the 3-gram binary model
         self.decoder = utils.Decode(gloss_dict, num_classes, 'beam')
         self.temporal_model = BiLSTMLayer(rnn_type='LSTM', input_size=hidden_size, hidden_size=hidden_size,
                                           num_layers=2, bidirectional=True)
@@ -80,7 +81,6 @@ class SLRModel(nn.Module):
 
     def forward(self, x, len_x, label=None, label_lgt=None):
         if len(x.shape) == 5:
-            # videos
             batch, temp, channel, height, width = x.shape
             #inputs = x.reshape(batch * temp, channel, height, width)
             #framewise = self.masked_bn(inputs, len_x)
@@ -100,6 +100,12 @@ class SLRModel(nn.Module):
             else self.decoder.decode(outputs, lgt, batch_first=False, probs=False)
         conv_pred = None if self.training \
             else self.decoder.decode(conv1d_outputs['conv_logits'], lgt, batch_first=False, probs=False)
+            
+          # Print the decoded predictions for both pred and conv_pred
+        if pred is not None:
+            print("Predicted Sentence (Final Output):", pred)
+        if conv_pred is not None:
+            print("Conv Predicted Sentence (Intermediate Output):", conv_pred)
 
         return {
             #"framewise_features": framewise,
@@ -113,6 +119,10 @@ class SLRModel(nn.Module):
 
     def criterion_calculation(self, ret_dict, label, label_lgt):
         loss = 0
+    
+        if (label_lgt == 0).any():
+            print("ERROR: Found zero-length label!")
+            exit()  
         for k, weight in self.loss_weights.items():
             if k == 'ConvCTC':
                 loss += weight * self.loss['CTCLoss'](ret_dict["conv_logits"].log_softmax(-1),

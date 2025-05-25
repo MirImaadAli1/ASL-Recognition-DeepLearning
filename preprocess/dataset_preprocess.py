@@ -1,54 +1,75 @@
-import re
 import os
 import cv2
-import pdb
 import glob
 import pandas
-import argparse
 import numpy as np
 from tqdm import tqdm
+import argparse
+import re
 from functools import partial
 from multiprocessing import Pool
 
 
 def csv2dict(anno_path, dataset_type):
-    inputs_list = pandas.read_csv(anno_path)
-    if dataset_type == 'train':
-        broken_data = [2390]
-        inputs_list.drop(broken_data, inplace=True)
-    inputs_list = (inputs_list.to_dict()['id|folder|signer|annotation'].values())
-    info_dict = dict()
-    info_dict['prefix'] = anno_path.rsplit("/", 3)[0] + "/features/fullFrame-210x260px"
-    print(f"Generate information dict from {anno_path}")
-    for file_idx, file_info in tqdm(enumerate(inputs_list), total=len(inputs_list)):
-        fileid, folder, signer, label = file_info.split("|")
-        num_frames = len(glob.glob(f"{info_dict['prefix']}/{dataset_type}/{folder}"))
-        info_dict[file_idx] = {
+    info_dict = {}
+    dataset_prefix = anno_path  # This should be a CSV file, not a directory
+
+    if not os.path.isfile(dataset_prefix):  
+        raise FileNotFoundError(f"Annotation file not found: {dataset_prefix}")
+
+    df = pandas.read_csv(dataset_prefix)  # Load CSV
+
+    for idx, row in df.iterrows():
+        fileid = row['sentence_name']  # The file ID should match the video ID
+        label = row['label']
+        
+        # Construct the correct path to the frames, assuming structure is ./videos/{sentence_meaning}/{fileid}/frames/
+        frames_path = f"../videos/{fileid}/"
+        # print(f"Looking for frames in: {frames_path}")
+        
+        
+        # Check if the path exists and count the .jpg files inside it
+        num_frames = len(glob.glob(os.path.join(frames_path, "*.jpg")))
+        # print(f"Frames for {fileid}: {num_frames}")
+
+        info_dict[idx] = {
+            'prefix': '../videos/',
             'fileid': fileid,
-            'folder': f"{dataset_type}/{folder}",
-            'signer': signer,
+            'folder': fileid,
+            'signer': 'Unknown',
             'label': label,
             'num_frames': num_frames,
-            'original_info': file_info,
+            'original_info': f"{fileid}|{label}",
         }
+    
     return info_dict
+
+
 
 
 def generate_gt_stm(info, save_path):
     with open(save_path, "w") as f:
         for k, v in info.items():
-            if not isinstance(k, int):
+            # Check if required keys exist
+            if 'fileid' not in v or 'label' not in v:
+                print(f"Skipping {k}: Missing fileid or label")
                 continue
+            
+            # Write each entry
             f.writelines(f"{v['fileid']} 1 {v['signer']} 0.0 1.79769e+308 {v['label']}\n")
 
 
 def sign_dict_update(total_dict, info):
+    # Add the blank token explicitly
+    # total_dict[' '] = 0  # or 1 depending on your use case
+    
     for k, v in info.items():
-        if not isinstance(k, int):
+        if not isinstance(k, int):  # Ensure keys are integers
             continue
-        split_label = v['label'].split()
+        
+        split_label = v['label'].split()  # Split label into individual glosses
         for gloss in split_label:
-            if gloss not in total_dict.keys():
+            if gloss not in total_dict:
                 total_dict[gloss] = 1
             else:
                 total_dict[gloss] += 1
@@ -63,8 +84,20 @@ def resize_img(img_path, dsize='210x260px'):
 
 
 def resize_dataset(video_idx, dsize, info_dict):
-    info = info_dict[video_idx]
-    img_list = glob.glob(f"{info_dict['prefix']}/{info['folder']}")
+    # for key, value in info_dict.items():
+    #     try:
+    #         print(f"Prefix for {key}: {value['prefix']}")
+    #     except KeyError as e:
+    #         print(f"KeyError: {e} for {key}")
+
+    info = info_dict[video_idx]  # video_idx should now be a string (video name)
+    if 'prefix' not in info_dict:
+        info_dict['prefix'] = '../videos/'  # Assign default prefix
+    if 'prefix' in info_dict:
+        img_list = glob.glob(f"{info_dict['prefix']}/{info['folder']}/{info['fileid']}/*.jpg")
+    else:
+        print(f"Missing 'prefix' for file: {info['fileid']}")
+        # Handle the case where 'prefix' is missing (maybe skip or set a default value)
     for img_path in img_list:
         rs_img = resize_img(img_path, dsize=dsize)
         rs_img_path = img_path.replace("210x260px", dsize)
@@ -89,21 +122,22 @@ def run_cmd(func, args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Data process for Visual Alignment Constraint for Continuous Sign Language Recognition.')
-    parser.add_argument('--dataset', type=str, default='phoenix2014',
+    parser.add_argument('--dataset', type=str, default='how2sign',
                         help='save prefix')
-    parser.add_argument('--dataset-root', type=str, default='../dataset/phoenix2014/phoenix-2014-multisigner',
+    parser.add_argument('--dataset-root', type=str, default='./videos',
                         help='path to the dataset')
-    parser.add_argument('--annotation-prefix', type=str, default='annotations/manual/{}.corpus.csv',
-                        help='annotation prefix')
+    parser.add_argument('--annotation-prefix', type=str, default='splits/{}.csv',
+                     help='annotation prefix')  
     parser.add_argument('--output-res', type=str, default='256x256px',
                         help='resize resolution for image sequence')
     parser.add_argument('--process-image', '-p', action='store_true',
                         help='resize image')
     parser.add_argument('--multiprocessing', '-m', action='store_true',
-                        help='whether adopts multiprocessing to accelate the preprocess')
+                        help='whether adopts multiprocessing to accelerate the preprocess')
 
     args = parser.parse_args()
     mode = ["dev", "test", "train"]
+    
     sign_dict = dict()
     if not os.path.exists(f"./{args.dataset}"):
         os.makedirs(f"./{args.dataset}")
@@ -113,11 +147,14 @@ if __name__ == '__main__':
         np.save(f"./{args.dataset}/{md}_info.npy", information)
         # update the total gloss dict
         sign_dict_update(sign_dict, information)
-        # generate groudtruth stm for evaluation
+        # generate groundtruth stm for evaluation
         generate_gt_stm(information, f"./{args.dataset}/{args.dataset}-groundtruth-{md}.stm")
         # resize images
-        video_index = np.arange(len(information) - 1)
+        video_index = list(information.keys())   # ✅ Get actual video names
         print(f"Resize image to {args.output_res}")
+        # Print the first 10 entries of the 'information' dictionary
+        print("INFO_DICT CONTENT (First 10 entries):", dict(list(information.items())[:10]))
+
         if args.process_image:
             if args.multiprocessing:
                 run_mp_cmd(10, partial(resize_dataset, dsize=args.output_res, info_dict=information), video_index)

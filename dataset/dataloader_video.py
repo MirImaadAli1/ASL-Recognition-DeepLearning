@@ -40,15 +40,19 @@ class BaseFeeder(data.Dataset):
         self.feat_prefix = f"{prefix}/features/fullFrame-256x256px/{mode}"
         self.transform_mode = "train" if transform_mode else "test"
         self.inputs_list = np.load(f"./preprocess/{dataset}/{mode}_info.npy", allow_pickle=True).item()
+        print("length of inputlist:", {len(self.inputs_list)})  # Should print the number of items in the list
+        print("Keys of inputs_lsit:", list(self.inputs_list.keys())[:10])
+        print("Type of inputs_List", type(self.inputs_list))
+   
+
         print(mode, len(self))
         self.data_aug = self.transform()
         print("")
 
     def __getitem__(self, idx):
         if self.data_type == "video":
-            input_data, label, fi = self.read_video(idx)
-            input_data, label = self.normalize(input_data, label)
-            # input_data, label = self.normalize(input_data, label, fi['fileid'])
+            input_data, label, fi = self.read_video(idx)  # Load video data
+            input_data, label = self.normalize(input_data, label)  # Normalize the data
             return input_data, torch.LongTensor(label), self.inputs_list[idx]['original_info']
         elif self.data_type == "lmdb":
             input_data, label, fi = self.read_lmdb(idx)
@@ -58,16 +62,23 @@ class BaseFeeder(data.Dataset):
             input_data, label = self.read_features(idx)
             return input_data, label, self.inputs_list[idx]['original_info']
 
+
     def read_video(self, index):
         # load file info
         fi = self.inputs_list[index]
+        # print(f"Contents of fi at index {index}: {fi}")
+        print(f"Processing index {index}, folder: {fi['folder']}")  # Debugging output
         if 'phoenix' in self.dataset:
             img_folder = os.path.join(self.prefix, "features/fullFrame-256x256px/" + fi['folder'])  
         elif self.dataset == 'CSL':
             img_folder = os.path.join(self.prefix, "features/fullFrame-256x256px/" + fi['folder'] + "/*.jpg")
         elif self.dataset == 'CSL-Daily':
             img_folder = os.path.join(self.prefix, fi['folder'])
-        img_list = sorted(glob.glob(img_folder))
+        elif self.dataset == 'how2sign':
+            img_folder = os.path.join(self.prefix, fi['folder'])
+        img_list = sorted(glob.glob(img_folder + "/*.jpg"))
+        if len(img_list) == 0:
+            print(f"Warning: No images found in {img_folder}")  # Debugging output
         img_list = img_list[int(torch.randint(0, self.frame_interval, [1]))::self.frame_interval]
         label_list = []
         for phase in fi['label'].split(" "):
@@ -75,7 +86,22 @@ class BaseFeeder(data.Dataset):
                 continue
             if phase in self.dict.keys():
                 label_list.append(self.dict[phase][0])
-        return [cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB) for img_path in img_list], label_list, fi
+            # Load images safely
+        images = []
+        for img_path in img_list:
+            img = cv2.imread(img_path)
+            if img is None:
+                print(f"❌ Error: Missing or corrupted image {img_path}")  # Debugging output
+                continue
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            images.append(img)
+        
+        if len(images) == 0:
+            print(f"❌ Error: No valid images found for {fi['folder']}")  # Extra safety check
+        
+        return images, label_list, fi
+
+
 
     def read_features(self, index):
         # load file info
@@ -159,13 +185,25 @@ class BaseFeeder(data.Dataset):
                 for vid in video]
             padded_video = torch.stack(padded_video).permute(0, 2, 1)
         label_length = torch.LongTensor([len(lab) for lab in label])
+        # If the max label length is 0, return empty labels
         if max(label_length) == 0:
             return padded_video, video_length, [], [], info
         else:
+            # Find the maximum label length across all videos in the batch
+            max_label_len = max(label_length)
+            
+            # Padd the label sequences separately for each video
             padded_label = []
             for lab in label:
-                padded_label.extend(lab)
-            padded_label = torch.LongTensor(padded_label)
+                # Pad each label sequence to max_label_len
+                lab = torch.LongTensor(lab)
+                padding = max_label_len - len(lab)
+                if padding > 0:
+                    lab = torch.cat([lab, torch.zeros(padding, dtype=torch.long).cuda()])
+                padded_label.append(lab)
+            
+            # Stack the padded label sequences into a tensor of shape [batch_size, max_label_len]
+            padded_label = torch.stack(padded_label)
             return padded_video, video_length, padded_label, label_length, info
 
     def __len__(self):

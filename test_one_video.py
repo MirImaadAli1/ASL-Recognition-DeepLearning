@@ -55,7 +55,7 @@ else:
 
 
 # Load data and apply transformation
-dict_path = f'./preprocess/{dataset}/gloss_dict.npy'  # Use the gloss dict of phoenix14 dataset 
+dict_path = f'./preprocess/how2sign/gloss_dict.npy'  # Use the gloss dict of phoenix14 dataset 
 gloss_dict = np.load(dict_path, allow_pickle=True).item()
 
 if os.path.isdir(args.video_path): # extracted images of a video
@@ -108,7 +108,7 @@ device.set_device(device_id)
 # Define model and load state-dict
 model = SLRModel( num_classes=len(gloss_dict)+1, c2d_type='resnet18', conv_type=2, use_bn=1, gloss_dict=gloss_dict,
             loss_weights={'ConvCTC': 1.0, 'SeqCTC': 1.0, 'Dist': 25.0},   )
-state_dict = torch.load(args.model_path)['model_state_dict']
+state_dict = torch.load(args.model_path, weights_only=False)['model_state_dict']
 state_dict = OrderedDict([(k.replace('.module', ''), v) for k, v in state_dict.items()])
 model.load_state_dict(state_dict, strict=True)
 model = model.to(device.output_device)
@@ -119,6 +119,6 @@ model.eval()
 vid = device.data_to_device(vid)
 vid_lgt = device.data_to_device(video_length)
 ret_dict = model(vid, vid_lgt, label=None, label_lgt=None)
-print('output glosses : {}'.format(ret_dict['recognized_sents']))
+print('output glosses : {}'.format(ret_dict['conv_sents']))
 # Example 
 # output glosses : [[('ICH', 0), ('LUFT', 1), ('WETTER', 2), ('GERADE', 3), ('loc-SUEDWEST', 4), ('TEMPERATUR', 5), ('__PU__', 6), ('KUEHL', 7), ('SUED', 8), ('WARM', 9), ('ICH', 10), ('IX', 11)]]

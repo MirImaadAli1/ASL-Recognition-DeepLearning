@@ -58,6 +58,7 @@ def run_inference(inputs):
     elif os.path.splitext(inputs)[-1] in VIDEO_FORMATS: # Video case
         try:
             img_list = load_video(inputs, args.max_frames_num)  # frames [height, width, channels]
+            print("attempted to load")
         except Exception as e:
             raise ValueError(f"Error {e} in loading video")
     else:
@@ -125,14 +126,16 @@ if __name__ == "__main__":
     if args.language == 'phoenix':
         dataset = 'phoenix2014' 
     elif args.language == 'csl':
-        dataset = 'CSL-Daily' 
+        dataset = 'CSL-Daily'
+    elif args.language == 'how2sign':
+        dataset = 'how2sign'  
     else:
         raise ValueError("Please select target language from ['phoenix', 'csl'] in your command")
 
     model_weights = args.model_path
 
     # Load data and apply transformation
-    dict_path = f'./preprocess/{dataset}/gloss_dict.npy'  # Use the gloss dict of phoenix14 dataset 
+    dict_path = f'./preprocess/how2sign/gloss_dict.npy'  # Use the gloss dict of phoenix14 dataset 
     gloss_dict = np.load(dict_path, allow_pickle=True).item()
 
     device = utils.GpuDataParallel()
@@ -140,7 +143,7 @@ if __name__ == "__main__":
     # Define model and load state-dict
     model = SLRModel( num_classes=len(gloss_dict)+1, c2d_type='resnet18', conv_type=2, use_bn=1, gloss_dict=gloss_dict,
                 loss_weights={'ConvCTC': 1.0, 'SeqCTC': 1.0, 'Dist': 25.0},   )
-    state_dict = torch.load(model_weights)['model_state_dict']
+    state_dict = torch.load(model_weights, weights_only=False)['model_state_dict']
     state_dict = OrderedDict([(k.replace('.module', ''), v) for k, v in state_dict.items()])
     model.load_state_dict(state_dict, strict=True)
     model = model.to(device.output_device)
@@ -173,4 +176,4 @@ if __name__ == "__main__":
         multiple_image_button.click(run_inference, inputs=Multi_image_input, outputs=multiple_image_output)
         video_button.click(run_inference, inputs=Video_input, outputs=video_output)
         
-    demo.launch(share=False,server_name="0.0.0.0", server_port=7862)
+    demo.launch(share=True,server_name="0.0.0.0", server_port=7862)
